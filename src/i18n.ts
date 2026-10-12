@@ -180,6 +180,7 @@ const tr = {
   'lib.importFailed': '{name} alınamadı. {why}',
   'lib.errColumns': 'Dosyada zaman, gerilim ve akım sütunları bulunamadı.',
   'lib.errRows': 'Dosyada okunabilir en az iki satır yok.',
+  'lib.errSize': 'Dosya çok büyük. En fazla 8.640.000 satır (100 örnek/sn ile bir gün) alınabilir.',
 
   'an.duration': 'Süre',
   'an.cell': 'Hücre kapasitesi karşılığı',
@@ -779,6 +780,7 @@ const en: Record<Key, string> = {
   'lib.importFailed': 'Could not import {name}. {why}',
   'lib.errColumns': 'The file has no time, voltage and current columns.',
   'lib.errRows': 'The file has fewer than two readable rows.',
+  'lib.errSize': 'The file is too large. At most 8,640,000 rows (one day at 100 samples/s) can be imported.',
 
   'an.duration': 'Duration',
   'an.cell': 'Equivalent cell capacity',

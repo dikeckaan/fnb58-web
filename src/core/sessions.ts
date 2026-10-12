@@ -117,7 +117,11 @@ export async function saveSession(meta: SessionMeta, store: SampleStore): Promis
 export async function listSessions(): Promise<SessionMeta[]> {
   const db = await openDb();
   const all = await ask<SessionMeta[]>(db.transaction(META).objectStore(META).getAll());
-  return all.sort((a, b) => b.createdAt - a.createdAt);
+  // Records written by an older build may hold a name or note that is not text.
+  const text = (x: unknown, fallback: string) => (typeof x === 'string' ? x : fallback);
+  return all
+    .map((m) => ({ ...m, name: text(m.name, String(m.id)), note: text(m.note, '') }))
+    .sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function loadSession(id: string): Promise<SampleStore | null> {

@@ -21,6 +21,37 @@ export function toCsv(store: SampleStore): string {
   return csvParts(store).join('');
 }
 
+/** One day at 100 samples/s, the same ceiling a recording has. */
+export const MAX_IMPORT_ROWS = 8_640_000;
+export const MAX_IMPORT_BYTES = 600 * 1024 * 1024;
+const sane = (x: number) => Number.isFinite(x) && Math.abs(x) < 1e6;
+
+/** A display name from untrusted input: always a short string. */
+export function cleanName(x: unknown, fallback: string): string {
+  const s = typeof x === 'string' ? x.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120) : '';
+  return s || fallback;
+}
+
+/** Rebuilds CSV text from the column arrays of this app's JSON export. Throws 'columns' on any other shape. */
+export function columnsToCsv(columns: unknown): string {
+  const c = (columns ?? {}) as Record<string, unknown>;
+  const col = (k: string, required: boolean): unknown[] | null => {
+    if (Array.isArray(c[k])) return c[k] as unknown[];
+    if (required) throw new Error('columns');
+    return null;
+  };
+  const t = col('t', true)!;
+  const v = col('v', true)!;
+  const i = col('i', true)!;
+  if (t.length > MAX_IMPORT_ROWS) throw new Error('size');
+  const dp = col('dp', false);
+  const dn = col('dn', false);
+  const temp = col('temp', false);
+  const n = (x: unknown) => (typeof x === 'number' ? x : NaN);
+  const rows = t.map((tt, k) => `${n(tt)},${n(v[k])},${n(i[k])},${n(dp?.[k]) || 0},${n(dn?.[k]) || 0},${n(temp?.[k]) || 0}`);
+  return ['time_s,voltage_V,current_A,dplus_V,dminus_V,temp_C', ...rows].join('\n');
+}
+
 const ALIASES: Record<string, 't' | 'v' | 'i' | 'dp' | 'dn' | 'temp'> = {
   time_s: 't', time: 't', t: 't', timestamp: 't',
   voltage_v: 'v', voltage: 'v', v: 'v', vbus: 'v',
@@ -37,6 +68,7 @@ const ALIASES: Record<string, 't' | 'v' | 'i' | 'dp' | 'dn' | 'temp'> = {
 export function parseCsv(text: string): SampleStore {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
   if (lines.length < 2) throw new Error('empty');
+  if (lines.length - 1 > MAX_IMPORT_ROWS) throw new Error('size');
   const sep = lines[0].includes(';') && !lines[0].includes(',') ? ';' : lines[0].includes('\t') ? '\t' : ',';
   const cols = lines[0].split(sep).map((c) => ALIASES[c.trim().toLowerCase()]);
   const idx = (k: string) => cols.indexOf(k as never);
@@ -52,12 +84,17 @@ export function parseCsv(text: string): SampleStore {
     const t = num(ti);
     const v = num(vi);
     const i = num(ii);
-    if (!Number.isFinite(t) || !Number.isFinite(v) || !Number.isFinite(i)) continue;
+    // Values are stored as 32-bit floats; anything that would overflow there is not a measurement.
+    if (!Number.isFinite(t) || !sane(v) || !sane(i)) continue;
     if (Number.isNaN(t0)) t0 = t;
     const rel = t - t0;
     if (rel <= prev) continue; // keep time strictly increasing
     prev = rel;
-    store.push(rel, v, i, num(dpi) || 0, num(dni) || 0, num(tempi) || 0);
+    const opt = (k: number) => {
+      const x = num(k);
+      return sane(x) ? x : 0;
+    };
+    store.push(rel, v, i, opt(dpi), opt(dni), opt(tempi));
   }
   if (store.length < 2) throw new Error('rows');
   return store;

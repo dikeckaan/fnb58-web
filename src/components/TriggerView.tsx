@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Download, FileUp, Plus, Trash2, TriangleAlert } fro
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { engine } from '../core/engine';
 import { downloadBlob } from '../core/exporters';
-import { SequenceRunner, type Step } from '../core/sequence';
+import { MAX_STEPS, sanitizeStep, SequenceRunner, type Step } from '../core/sequence';
 import { newId } from '../core/sessions';
 import { isValidTrigger, snapTrigger, TRIGGER_PROTOCOLS, type TriggerProtocol } from '../device/protocol';
 import { num, timeOfDay } from '../format';
@@ -121,11 +121,12 @@ export function TriggerView() {
     const f = files?.[0];
     if (!f) return;
     try {
-      const raw = JSON.parse(await f.text()) as { steps?: Partial<Step>[] };
-      const steps = (raw.steps ?? []).flatMap((s): Step[] => {
-        const p = TRIGGER_PROTOCOLS.find((x) => x.id === s.protocol);
-        if (!p || typeof s.millivolts !== 'number') return [];
-        return [{ id: newId(), protocol: p.id, millivolts: snapTrigger(p, s.millivolts), holdMs: Math.max(0, Number(s.holdMs) || 0) }];
+      if (f.size > 1_000_000) throw new Error('size');
+      const raw = JSON.parse(await f.text()) as { steps?: unknown };
+      const list = Array.isArray(raw?.steps) ? raw.steps.slice(0, MAX_STEPS) : [];
+      const steps = list.flatMap((s): Step[] => {
+        const step = sanitizeStep(s, newId());
+        return step ? [step] : [];
       });
       if (!steps.length) throw new Error('empty');
       setPlan(steps);

@@ -1,7 +1,7 @@
 import { Download, FileUp, Image, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { analyze, type Analysis } from '../core/analysis';
-import { csvParts, downloadBlob, parseCsv, safeFilename } from '../core/exporters';
+import { cleanName, columnsToCsv, csvParts, downloadBlob, MAX_IMPORT_BYTES, parseCsv, safeFilename } from '../core/exporters';
 import type { Sample, SampleStore } from '../core/sampleStore';
 import { deleteSession, describeStore, listSessions, loadSession, saveSession, updateSession, type SessionMeta } from '../core/sessions';
 import { integrate } from '../core/stats';
@@ -264,15 +264,15 @@ export function RecordingsView() {
     setError('');
     for (const f of Array.from(files ?? [])) {
       try {
+        if (f.size > MAX_IMPORT_BYTES) throw new Error('size');
         const text = await f.text();
         let s: SampleStore;
-        let name = f.name.replace(/\.(csv|json|txt)$/i, '');
+        let name = cleanName(f.name.replace(/\.(csv|json|txt)$/i, ''), 'import');
         if (/^\s*\{/.test(text)) {
-          const j = JSON.parse(text) as { meta?: { name?: string }; columns: Record<string, number[]> };
-          const c = j.columns;
-          const rows = c.t.map((tt, k) => `${tt},${c.v[k]},${c.i[k]},${c.dp?.[k] ?? 0},${c.dn?.[k] ?? 0},${c.temp?.[k] ?? 0}`);
-          s = parseCsv(['time_s,voltage_V,current_A,dplus_V,dminus_V,temp_C', ...rows].join('\n'));
-          name = j.meta?.name ?? name;
+          const j = JSON.parse(text) as { meta?: { name?: unknown }; columns?: unknown } | null;
+          s = parseCsv(columnsToCsv(j?.columns));
+          // The name ends up in the library and on screen, so it must be plain text.
+          name = cleanName(j?.meta?.name, name);
         } else {
           s = parseCsv(text);
         }
@@ -283,7 +283,7 @@ export function RecordingsView() {
         setSelected(meta.id);
       } catch (e) {
         const code = e instanceof Error ? e.message : '';
-        setError(t('lib.importFailed', { name: f.name, why: t(code === 'columns' ? 'lib.errColumns' : 'lib.errRows') }));
+        setError(t('lib.importFailed', { name: f.name, why: t(code === 'columns' ? 'lib.errColumns' : code === 'size' ? 'lib.errSize' : 'lib.errRows') }));
       }
     }
     libraryChanged();
