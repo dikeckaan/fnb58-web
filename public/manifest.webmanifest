@@ -1,0 +1,11 @@
+{
+  "name": "FNB58 Tezgâh",
+  "short_name": "FNB58",
+  "description": "FNIRSI FNB58 USB test cihazı için ölçüm, kayıt ve analiz aracı.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#14212b",
+  "theme_color": "#14212b",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

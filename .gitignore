@@ -1,0 +1,6 @@
+node_modules
+dist
+.playwright-mcp
+.wrangler
+*.tsbuildinfo
+.DS_Store
